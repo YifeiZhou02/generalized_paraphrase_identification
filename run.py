@@ -1,15 +1,13 @@
 import numpy as np
 import torch
 import random
-from utils import Question_pair, get_pairs, get_pit_test_pairs, get_distribution_model,\
-get_generative_model, pairs_auc, get_discriminative_model,robust_predictions, bert_scorer
+from utils import Question_pair, get_pairs, get_pit_test_pairs, MAX_LEN, get_wmt17_seg_da
+from training import get_generative_model, get_discriminative_model,  get_distribution_model
+from testing import pairs_auc, robust_predictions, bert_scorer
 from transformers import BartTokenizer
-from load_dataset import  get_wmt17_seg_da
 from transformers.utils import logging
 wmt17_lang_pairs = ['cs-en', 'de-en', 'fi-en', 'lv-en', 'ru-en', 'tr-en', 'zh-en']
-wmt18_lang_pairs = ['cs-en', 'de-en', 'et-en', 'fi-en', 'ru-en', 'tr-en', 'zh-en']
 from sklearn.metrics import f1_score
-from utils import MAX_LEN
 import argparse
 
 def main(args):
@@ -88,11 +86,11 @@ def main(args):
         dev_pairs = get_pairs('paws/dev_2k.tsv',
                             0, 1, 2, 3, tokenizer)
     #training the models
-    discriminative_model = get_discriminative_model(train_pairs, dev_pairs, max_epochs = 5)
+    discriminative_model = get_discriminative_model(train_pairs, dev_pairs, max_epochs = max_epochs)
     if args.option == 'robust':
-        distribution_model = get_distribution_model(train_pairs, dev_pairs, empty, max_epochs = 5)
-        positive_model = get_generative_model('positive', train_pairs, dev_pairs, max_epochs = 5)
-        negative_model = get_generative_model('negative', train_pairs, dev_pairs, max_epochs = 5)
+        distribution_model = get_distribution_model(train_pairs, dev_pairs, empty, max_epochs = max_epochs)
+        positive_model = get_generative_model('positive', train_pairs, dev_pairs, max_epochs = max_epochs)
+        negative_model = get_generative_model('negative', train_pairs, dev_pairs, max_epochs = max_epochs)
 
     #making predictions
     for test_name, test_pairs, C in zip(['PIT', 'QQP', 'WMT', 'PAWS'], [pit_test_pairs, qqp_test_pairs,\
@@ -105,6 +103,7 @@ def main(args):
                  [pair.question2 for pair in test_pairs], discriminative_model, tokenizer)
         scores = np.asarray(scores)
 
+        #evaluate results
         auc_score = pairs_auc(test_pairs, scores)
         target = np.array([p.is_duplicate for p in test_pairs])
         predictions = scores.flatten() < 0

@@ -3,10 +3,7 @@ import torch.nn.functional as F
 import torch
 import pytorch_lightning as pl
 import torch.nn as nn
-#MAX_LEN is the allowed length for each sentence
-MAX_LEN = 40
-# #VOC_SIZE is the vocabulary size for our tokenizer
-VOC_SIZE = 50265
+from utils import MAX_LEN, VOC_SIZE
 class BartGenerationNet(pl.LightningModule):
     """
     the class where we use Bart for conditional generation
