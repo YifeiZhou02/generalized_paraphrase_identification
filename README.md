@@ -4,6 +4,9 @@ NeurIPS 2022
 
 An ensemble model for paraphrase identification robust to distribution shift.
 
+![Canvas 1](https://user-images.githubusercontent.com/83000332/192064352-84d1ac9b-14d7-4697-96f2-49347c7b44d4.png)
+
+
 ## Requirements
 * GPU
 * requirements.txt
