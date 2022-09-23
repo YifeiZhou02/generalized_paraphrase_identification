@@ -30,6 +30,8 @@ def get_wmt18_seg_data(lang_pair):
         ref += [references[row['SID']-1]]
 
     return ref, cand_better, cand_worse
+
+
 def get_wmt17_seg_data(lang_pair):
     src, tgt = lang_pair.split('-')
     

@@ -1,25 +1,13 @@
 import pandas as pd
-import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
-from models import NaiveRobertaNet
 from torch.utils.data import DataLoader
-import random
 from sklearn import metrics
-from sklearn.model_selection import train_test_split
-from tqdm import tqdm
+from scipy.stats import exponweib
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks.early_stopping import EarlyStopping
-from transformers.modeling_outputs import BaseModelOutput
-from transformers import AutoTokenizer
 from transformers import AutoModel
-from models import BartGenerationNet, NaiveBartNet
-#MAX_LEN is the allowed length for each sentence
-MAX_LEN = 40
-# #VOC_SIZE is the vocabulary size for our tokenizer
-VOC_SIZE = 50265
+from transformers import BartForConditionalGeneration
+from models import BartGenerationNet, NaiveBartNet, MAX_LEN, VOC_SIZE
 class Question_pair():
   """
   the class used to encode the total information of a quora question pair
@@ -52,6 +40,9 @@ class Question_pair():
     self.tokens_combined = encoded_inputs
 def get_pairs(file_path, index_id, index_question1, index_question2, index_duplicate,\
               tokenizer, MAX_LEN = MAX_LEN, limit = 50000):
+  """
+  use this method to load qqp, pit, and paws dataset
+  """
   #prepare training examples for pit
   df = pd.read_csv(file_path, sep = '\t')
   id_column = df.iloc[:limit,index_id]
@@ -80,6 +71,9 @@ def get_pairs(file_path, index_id, index_question1, index_question2, index_dupli
 
 
 def get_pit_test_pairs(tokenizer, MAX_LEN = MAX_LEN):
+  """
+  use this method to get the test data for pit
+  """
   df_data = pd.read_csv('pit/test.data', sep = '\t')
   df_label = pd.read_csv('pit/test.label', sep = '\t')
   id_column = df_data.iloc[:,0]
@@ -165,7 +159,7 @@ def model_scorer(cand, ref, model, tokenizer, MAX_LEN = MAX_LEN):
   num_batch = tokens1.size(0)//32 
   if tokens1.size(0) % 32 != 0:
         num_batch += 1
-  for j in tqdm(range(num_batch)):
+  for j in range(num_batch):
     x1 = tokens1[j*32:j*32+32,:]
     x2 = tokens2[j*32:j*32+32,:]
     with torch.no_grad():
@@ -205,7 +199,7 @@ def bert_scorer(cand, ref, model, tokenizer, MAX_LEN = MAX_LEN):
   num_batch = tokens.size(0)//32 
   if tokens.size(0) % 32 != 0:
         num_batch += 1
-  for j in tqdm(range(num_batch)):
+  for j in range(num_batch):
     x = tokens[j*32:j*32+32,:]
     with torch.no_grad():
         batch_size = x.size(0)
@@ -233,7 +227,7 @@ def distribution_scorer(cand, ref, model, tokenizer):
   num_batch = tokens1.size(0)//32 
   if tokens1.size(0) % 32 != 0:
         num_batch += 1
-  for j in tqdm(range(num_batch)):
+  for j in range(num_batch):
     x1 = tokens1[j*32:j*32+32,:]
     x2 = tokens2[j*32:j*32+32,:]
     with torch.no_grad():
@@ -307,7 +301,7 @@ def get_discriminative_model(train_pairs, test_pairs, max_epochs = 3):
     return model
 
 def robust_predictions(positive_model, negative_model, distribution_model,\
-                       dev_pairs, test_pairs, discriminative_model= None, C = 3):
+                       dev_pairs, test_pairs, tokenizer, discriminative_model= None, C = 3):
     thresh = .1
     #first fit a weibull distribution to dev set
     candidates1 = [pair.question1 for pair in dev_pairs]
@@ -337,49 +331,3 @@ def robust_predictions(positive_model, negative_model, distribution_model,\
         discriminative_scores = (.5 - discriminative_scores )*1000
         scores += (distribution_weights > thresh)*discriminative_scores
     return scores
-
-#below are used to collect some RCA data
-# def split_and_train(train_pairs, test_size = 1000):
-#     new_train_pairs, new_test_pairs = train_test_split(train_pairs, test_size = test_size)
-#     features, labels, sentence_o = generate_multitask_data(new_train_pairs)
-#     train_dataset = torch.utils.data.TensorDataset(features, labels)
-#     train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True, drop_last = True)
-#     bert = RobertaModel.from_pretrained("roberta-base")
-#     model = NaiveRobertaNet(bert)
-#     trainer = pl.Trainer(devices = "auto", accelerator = 'gpu',max_epochs = 5, benchmark = True)
-#     trainer.fit(model, train_dataloader)
-#     return model, new_test_pairs
-
-# def rca_testing(pairs, test_pairs, trained_model, tokenizer, MAX_LEN = MAX_LEN):
-#     candidates1 = [pair.question1 for pair in pairs]
-#     candidates2 = [pair.question2 for pair in pairs]
-#     scores = bert_scorer(candidates1, candidates2, trained_model, tokenizer)
-#     new_pairs = []
-#     for score, pair in zip(scores, pairs):
-#         is_duplicate = 0
-#         if score > .5:
-#             is_duplicate = 1
-#         new_pairs.append(Question_pair(pair.id, pair.question1, pair.question2, is_duplicate))
-#     for pair in new_pairs:
-#         pair.tokenize_self(tokenizer, MAX_LEN)
-#     train_pairs = new_pairs
-#     dev_pairs = new_pairs
-#     features, labels, sentence_o = generate_multitask_data(train_pairs)
-#     dev_features, dev_labels, dev_sentence_o = generate_multitask_data(dev_pairs)
-#     train_dataset = torch.utils.data.TensorDataset(features, labels)
-#     train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-#     dev_dataset = torch.utils.data.TensorDataset(dev_features,  dev_labels)
-#     dev_dataloader = DataLoader(dev_dataset, batch_size=32, shuffle=True)
-#     bert = RobertaModel.from_pretrained("roberta-base")
-#     model = NaiveRobertaNet(bert)
-#     trainer = pl.Trainer(devices = "auto", accelerator = 'gpu',callbacks=[EarlyStopping(monitor="val_loss")],\
-#                     auto_scale_batch_size= "power" , max_epochs = 5, benchmark = True,auto_lr_find=True)
-#     trainer.fit(model, train_dataloader, dev_dataloader)
-#     candidates1 = [pair.question1 for pair in test_pairs]
-#     candidates2 = [pair.question2 for pair in test_pairs]
-#     test_scores = bert_scorer(candidates1, candidates2, model, tokenizer)
-#     auc_score = pairs_auc(test_pairs, -test_scores)
-#     target = np.array([p.is_duplicate for p in test_pairs])
-#     predictions = (test_scores.flatten() > .5).numpy()
-#     acc_score = np.mean(target == predictions)
-#     return auc_score, acc_score
