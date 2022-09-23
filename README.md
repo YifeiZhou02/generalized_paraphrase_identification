@@ -22,4 +22,14 @@ Please download the following paraphrase identification datasets:
 ## Usage
 To train and evaluate a paraphrase identification model, run: <br />  
 
-<code>python run.py --source_dataset [QQP, PIT, PAWS] --</code>
+<code>python run.py --source_dataset [QQP, PIT, PAWS] --option [naive, robust]</code>
+<br />  
+
+Here we implemented a simplified version from the paper, where for the discriminative model, we use BART instead of RoBERTa
+
+## Results
+You should expect to see something similar to this (f1/acc/auc):
+| Command    |  QQP->QQP     |QQP->WMT     |QQP->PAWS     |QQP->PIT      |
+| :---        |    :----:   |          ---: |      ---: |      ---: |
+|   <code>python run.py --source_dataset QQP --option naive</code>     |    83.4/83.5/91.2  | 66.7/66.8/74.2 | 44.7/49.8/57.1 | 63.6/66.5/82.0      |
+| <code>python run.py --source_dataset QQP --option robust</code>       |   83.1/83.2/88.4   | 74.4/74.7/79.3| 56.6/56.9/59.5 | 62.3/63.6/73.5      |
